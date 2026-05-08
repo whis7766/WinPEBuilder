@@ -16,7 +16,7 @@ on:
         description: 'Windows ISO 直链'
         required: true
         type: string
-        default: "https://go.microsoft.com/fwlink/?linkid=2345732"
+        default: "https://go.microsoft.com/fwlink/?linkid=2345732&clcid=0x804&culture=zh-cn&country=cn"
       source_index:
         description: 'source镜像索引'
         required: true
