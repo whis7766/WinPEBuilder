@@ -1,0 +1,83 @@
+name: Build WindowsPE
+permissions:
+  contents: write
+  actions: write
+on:
+  workflow_dispatch:
+    inputs:
+      pe_project:
+        description: '请选择 WinPE 项目'
+        required: true
+        default: 'WinPE'
+        type: choice
+        options:
+        - WinPE
+      sourceiso_url:
+        description: 'Windows ISO 直链'
+        required: true
+        type: string
+        default: "https://go.microsoft.com/fwlink/?linkid=2345732"
+      source_index:
+        description: 'source镜像索引'
+        required: true
+        default: '4'
+        type: string
+jobs:
+  build:
+    runs-on: windows-2022
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v6
+    - shell: cmd
+      run: powershell -NoProfile -ExecutionPolicy Unrestricted .\files\get_aria2.ps1 || (pause & exit /b 1)
+    - name: 下载source iso
+      shell: pwsh
+      run: |
+        New-Item -Path "WindowsISO" -ItemType Directory -Force
+        .\files\aria2c.exe --continue=true --max-connection-per-server=16 --split=16 `
+          -d "WindowsISO" `
+          -o "windows.iso" `
+          "${{ inputs.sourceiso_url }}"
+    - name: Run WinPEBuilder
+      shell: pwsh
+      run: |
+        # 获取 ISO 路径
+        $isoPath = (Get-ChildItem "WindowsISO\*.iso" | Select-Object -First 1).FullName
+        if ($null -eq $isoPath) {   
+          Write-Error "在 WindowsISO 中未找到任何 ISO 文件！"
+          exit 1
+        }
+        # 挂载镜像
+        Mount-DiskImage -ImagePath $isoPath
+
+        # 等待镜像挂载完成
+        Start-Sleep -Seconds 5 
+        $driveLetter = (Get-DiskImage -ImagePath $isoPath | Get-Volume).DriveLetter
+        if ([string]::IsNullOrWhiteSpace($driveLetter)) {
+          Write-Error "无法获取挂载的盘符！"
+          Dismount-DiskImage -ImagePath $isoPath
+          exit 1
+        }
+        Write-Host "镜像已挂载到盘符: ${driveLetter}:"
+
+        # 运行 WinPEBuilder
+        & $env:GITHUB_WORKSPACE\WinPEBuilder.cmd --source-folder "${driveLetter}:" --project "${{ inputs.pe_project }}" --source-index ${{ inputs.source_index }} --base-index 1 --make-iso
+
+        # 卸载镜像
+        Dismount-DiskImage -ImagePath $isoPath
+
+    - name: Upload ISO artifact
+      uses: actions/upload-artifact@v7
+      with:
+        name: ${{ inputs.pe_project }}.iso
+        path: ${{ github.workspace }}/target/${{ inputs.pe_project }}/*.iso
+        archive: false
+        if-no-files-found: error
+
+    - uses: Mattraks/delete-workflow-runs@v2.1.0
+      if: always()
+      with:
+        token: ${{ github.token }}
+        repository: ${{ github.repository }}
+        retain_days: 0
+        keep_minimum_runs: 0
