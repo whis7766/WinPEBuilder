@@ -61,7 +61,7 @@ jobs:
         Write-Host "镜像已挂载到盘符: ${driveLetter}:"
 
         # 运行 WinPEBuilder
-        & $env:GITHUB_WORKSPACE\WinPEBuilder.cmd --source-folder "${driveLetter}:" --project "${{ inputs.pe_project }}" --source-index ${{ inputs.source_index }} --base-index 1 --make-iso
+        & $env:GITHUB_WORKSPACE\WinPEBuilder.cmd --source-folder "${driveLetter}:" --project "${{ inputs.pe_project }}" --source-index ${{ inputs.source_index }} --base-index 2 --make-iso
 
         # 卸载镜像
         Dismount-DiskImage -ImagePath $isoPath
